@@ -1,0 +1,39 @@
+{
+  "name": "kinbot-plugin-twilio-sms",
+  "version": "0.2.0",
+  "description": "Send and receive SMS via the Twilio REST API and webhooks. Channel adapter (outbound via Messages API, inbound via signed webhooks).",
+  "author": "MarlBurroW",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MarlBurroW/kinbot-plugin-twilio-sms.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MarlBurroW/kinbot-plugin-twilio-sms/issues"
+  },
+  "homepage": "https://github.com/MarlBurroW/kinbot-plugin-twilio-sms#readme",
+  "main": "index.ts",
+  "files": [
+    "index.ts",
+    "twilioApi.ts",
+    "webhookSecurity.ts",
+    "plugin.json",
+    "README.md",
+    "logo.svg"
+  ],
+  "keywords": [
+    "kinbot-plugin",
+    "kinbot",
+    "twilio",
+    "sms",
+    "channel",
+    "webhook"
+  ],
+  "peerDependencies": {
+    "@kinbot-developer/sdk": "^0.2.0"
+  },
+  "devDependencies": {
+    "@kinbot-developer/sdk": "^0.2.0",
+    "typescript": "^6.0.3"
+  }
+}
