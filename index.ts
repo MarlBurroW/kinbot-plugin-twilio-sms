@@ -11,6 +11,8 @@
 
 import type {
   ChannelAdapter,
+  DeliveryStatus,
+  DeliveryStatusUpdate,
   IncomingMessage,
   IncomingMessageHandler,
   OutboundMessageParams,
@@ -19,6 +21,45 @@ import type {
 } from '@kinbot-developer/sdk'
 import { getAccount, sendSms, TwilioApiException, type TwilioAuth } from './twilioApi'
 import { validateTwilioSignature } from './webhookSecurity'
+
+// Path of the built-in plugin webhook dispatcher. Inbound SMS and delivery
+// status callbacks share this single endpoint (both signed by Twilio).
+const WEBHOOK_PATH_PREFIX = '/api/channels/plugin/twilio-sms/webhook/'
+
+// Twilio MessageStatus / SmsStatus values that mark a delivery-status callback
+// (as opposed to an inbound message, whose SmsStatus is `received`).
+const DELIVERY_STATES = new Set([
+  'queued', 'accepted', 'scheduled', 'sending', 'sent', 'delivered', 'undelivered', 'failed', 'canceled', 'read',
+])
+
+function publicWebhookUrl(channelId: string): string | null {
+  const base = (process.env.PUBLIC_URL ?? '').replace(/\/$/, '')
+  if (!base) return null
+  return `${base}${WEBHOOK_PATH_PREFIX}${channelId}`
+}
+
+function normalizeTwilioStatus(s: string): DeliveryStatus {
+  switch (s) {
+    case 'queued':
+    case 'accepted':
+    case 'scheduled':
+    case 'sending':
+      return 'queued'
+    case 'sent':
+      return 'sent'
+    case 'delivered':
+      return 'delivered'
+    case 'undelivered':
+      return 'undelivered'
+    case 'failed':
+    case 'canceled':
+      return 'failed'
+    case 'read':
+      return 'read'
+    default:
+      return 'unknown'
+  }
+}
 
 // ─── Resolved channel config shape ──────────────────────────────────────────
 // Stored in `channels.platformConfig` as JSON. The Auth Token is a password
@@ -140,7 +181,7 @@ export default function twilioSmsPlugin(ctx: PluginContext): {
     },
 
     async sendMessage(
-      _channelId: string,
+      channelId: string,
       config: Record<string, unknown>,
       params: OutboundMessageParams,
     ): Promise<OutboundMessageResult> {
@@ -154,9 +195,15 @@ export default function twilioSmsPlugin(ctx: PluginContext): {
       if (!body) {
         throw new Error('Cannot send empty SMS body')
       }
-      const result = await sendSms({ auth, from, to, body })
+      // Ask Twilio to call back with delivery status. Requires PUBLIC_URL so the
+      // callback reaches us; without it we still send, just without live status.
+      const statusCallback = publicWebhookUrl(channelId) ?? undefined
+      if (!statusCallback) {
+        ctx.log.warn({ to }, 'twilio-sms: PUBLIC_URL not set — sending without delivery status callback')
+      }
+      const result = await sendSms({ auth, from, to, body, statusCallback })
       ctx.log.info(
-        { sid: result.sid, status: result.status, to, from },
+        { sid: result.sid, status: result.status, to, from, statusCallback: !!statusCallback },
         'twilio-sms message sent',
       )
       return {
@@ -171,7 +218,7 @@ export default function twilioSmsPlugin(ctx: PluginContext): {
       _channelId: string,
       config: Record<string, unknown>,
       req: Request,
-    ): Promise<{ incoming: IncomingMessage | null; response: Response }> {
+    ): Promise<{ incoming: IncomingMessage | null; response: Response; deliveryUpdate?: DeliveryStatusUpdate }> {
       const auth = await resolveAuth(ctx, config)
 
       // Reconstruct the canonical URL Twilio used to sign. Twilio always
@@ -194,6 +241,36 @@ export default function twilioSmsPlugin(ctx: PluginContext): {
         return {
           incoming: null,
           response: new Response('Forbidden: invalid Twilio signature', { status: 403 }),
+        }
+      }
+
+      // Delivery-status callback? Twilio reuses this endpoint to report the
+      // lifecycle of an OUTBOUND message (sent → delivered, or failed). These
+      // carry a MessageStatus in the delivery set; inbound SMS carry
+      // SmsStatus=`received`. Detect them first and return a deliveryUpdate
+      // instead of injecting a new inbound message.
+      const statusValue = (params.get('MessageStatus') ?? params.get('SmsStatus') ?? '').toLowerCase()
+      if (statusValue && statusValue !== 'received' && DELIVERY_STATES.has(statusValue)) {
+        const sid = params.get('MessageSid') ?? params.get('SmsSid') ?? ''
+        const errorCode = params.get('ErrorCode')?.trim() || undefined
+        ctx.log.info(
+          { sid, status: statusValue, errorCode },
+          'twilio-sms delivery status callback',
+        )
+        const deliveryUpdate: DeliveryStatusUpdate | undefined = sid
+          ? {
+              platformMessageId: sid,
+              status: normalizeTwilioStatus(statusValue),
+              ...(errorCode ? { errorCode } : {}),
+            }
+          : undefined
+        return {
+          incoming: null,
+          deliveryUpdate,
+          response: new Response(EMPTY_TWIML, {
+            status: 200,
+            headers: { 'Content-Type': 'application/xml' },
+          }),
         }
       }
 

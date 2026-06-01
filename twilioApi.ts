@@ -106,9 +106,12 @@ export interface TwilioAccount {
 }
 
 export async function getAccount(auth: TwilioAuth): Promise<TwilioAccount> {
+  // The base URL in twilioApiRequest already includes `/Accounts/{sid}`, so
+  // the endpoint is just `.json` → GET /Accounts/{sid}.json. Repeating the
+  // SID here produced `/Accounts/{sid}/{sid}.json` and a 404 (code 20404).
   return twilioApiRequest<TwilioAccount>({
     auth,
-    endpoint: `/${encodeURIComponent(auth.accountSid)}.json`,
+    endpoint: `.json`,
     method: 'GET',
   })
 }
@@ -129,6 +132,12 @@ export interface SendSmsParams {
   from: string
   to: string
   body: string
+  /**
+   * Public URL Twilio POSTs delivery-status updates to (sent, delivered,
+   * undelivered, failed). When set, Twilio signs the callback with the same
+   * Auth Token, so it can reuse the inbound webhook endpoint + validation.
+   */
+  statusCallback?: string
 }
 
 export async function sendSms(params: SendSmsParams): Promise<TwilioMessageResource> {
@@ -136,6 +145,7 @@ export async function sendSms(params: SendSmsParams): Promise<TwilioMessageResou
   form.set('From', params.from)
   form.set('To', params.to)
   form.set('Body', params.body)
+  if (params.statusCallback) form.set('StatusCallback', params.statusCallback)
   return twilioApiRequest<TwilioMessageResource>({
     auth: params.auth,
     endpoint: '/Messages.json',

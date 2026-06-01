@@ -54,6 +54,23 @@ function inboundSmsForm(): URLSearchParams {
   return form
 }
 
+function statusCallbackForm(status: string, errorCode?: string): URLSearchParams {
+  // Realistic Twilio delivery-status callback for an OUTBOUND message: carries
+  // MessageStatus (the lifecycle state) and no Body. From/To are the original
+  // send direction (our number → recipient).
+  const form = new URLSearchParams()
+  form.set('AccountSid', ACCOUNT_SID)
+  form.set('ApiVersion', '2010-04-01')
+  form.set('From', FROM_NUMBER)
+  form.set('To', '+15559998888')
+  form.set('MessageSid', 'SMoutbound1234567890abcdef')
+  form.set('MessageStatus', status)
+  form.set('SmsSid', 'SMoutbound1234567890abcdef')
+  form.set('SmsStatus', status)
+  if (errorCode) form.set('ErrorCode', errorCode)
+  return form
+}
+
 /**
  * Recompute Twilio's canonical signature here, independently of the
  * production code path, so that a regression in webhookSecurity.ts cannot
@@ -135,6 +152,56 @@ describe('twilio-sms handleInboundWebhook', () => {
     const result = await adapter.handleInboundWebhook!(CHANNEL_ID, channelConfig(), req)
 
     expect(result.incoming).toBeNull()
+    expect(result.response.status).toBe(403)
+  })
+
+  it('treats a delivery-status callback as a deliveryUpdate, not an inbound message', async () => {
+    process.env.PUBLIC_URL = PUBLIC_URL
+    const adapter = buildAdapter()
+    const form = statusCallbackForm('delivered')
+    const sig = signTwilio(AUTH_TOKEN, FULL_URL, form)
+    const req = makeRequest(form, sig)
+
+    const result = await adapter.handleInboundWebhook!(CHANNEL_ID, channelConfig(), req)
+
+    expect(result.incoming).toBeNull()
+    expect(result.deliveryUpdate).toEqual({
+      platformMessageId: 'SMoutbound1234567890abcdef',
+      status: 'delivered',
+    })
+    expect(result.response.status).toBe(200)
+    expect(result.response.headers.get('Content-Type')).toBe('application/xml')
+  })
+
+  it('maps a failed callback to status=failed and carries the ErrorCode', async () => {
+    process.env.PUBLIC_URL = PUBLIC_URL
+    const adapter = buildAdapter()
+    const form = statusCallbackForm('failed', '30007')
+    const sig = signTwilio(AUTH_TOKEN, FULL_URL, form)
+    const req = makeRequest(form, sig)
+
+    const result = await adapter.handleInboundWebhook!(CHANNEL_ID, channelConfig(), req)
+
+    expect(result.incoming).toBeNull()
+    expect(result.deliveryUpdate).toEqual({
+      platformMessageId: 'SMoutbound1234567890abcdef',
+      status: 'failed',
+      errorCode: '30007',
+    })
+    expect(result.response.status).toBe(200)
+  })
+
+  it('still enforces the signature on status callbacks (HTTP 403, no deliveryUpdate)', async () => {
+    process.env.PUBLIC_URL = PUBLIC_URL
+    const adapter = buildAdapter()
+    const form = statusCallbackForm('delivered')
+    const wrongSig = signTwilio('not_the_real_token', FULL_URL, form)
+    const req = makeRequest(form, wrongSig)
+
+    const result = await adapter.handleInboundWebhook!(CHANNEL_ID, channelConfig(), req)
+
+    expect(result.incoming).toBeNull()
+    expect(result.deliveryUpdate).toBeUndefined()
     expect(result.response.status).toBe(403)
   })
 })

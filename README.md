@@ -10,15 +10,19 @@ plugin webhook dispatcher.
 In scope:
 - Outbound SMS via `POST /2010-04-01/Accounts/{sid}/Messages.json`
 - Inbound SMS via signed Twilio webhook (HMAC-SHA1, strict mode)
+- Delivery status callbacks (`MessageStatus`: sent, delivered,
+  undelivered, failed). On send, the plugin registers a `StatusCallback`
+  pointing at the same signed webhook endpoint; Twilio's async updates are
+  correlated back to the originating Kin message and the delivery hint under
+  the bubble refreshes live (`✓ Delivered` / `✗ Delivery failed (30007)`).
+  Requires `PUBLIC_URL` to be set (otherwise the SMS is still sent, just
+  without live status).
 - Per-channel credentials (one Twilio account / number per channel)
 - Vault-backed Auth Token (the field is `type:'password'`, auto-vaulted)
 
 Out of scope (V2 candidates):
 - MMS media download (`NumMedia > 0` is logged in metadata, but media
   URLs are not fetched, persisted, or rehydrated into attachments)
-- Delivery status webhook (`MessageStatus` callbacks: sent, delivered,
-  failed). The current `sendMessage` returns Twilio's synchronous status
-  only (typically `queued`).
 - Multi-number routing on a single channel (each channel binds to one
   `fromNumber`)
 - Opt-out keyword handling (`STOP`, `UNSUBSCRIBE`, `HELP`). Twilio
