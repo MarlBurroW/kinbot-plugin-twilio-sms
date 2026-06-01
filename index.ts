@@ -61,6 +61,22 @@ function normalizeTwilioStatus(s: string): DeliveryStatus {
   }
 }
 
+// Localized "Sent to <number>" hint rendered under the message bubble on send.
+// Matches the SDK's contextLine convention (see the teamspeak plugin). The
+// delivery-status callback later replaces it with the live status.
+const SENT_TO_LABEL: Record<string, string> = {
+  en: 'Sent to',
+  fr: 'Envoyé au',
+  de: 'Gesendet an',
+  es: 'Enviado a',
+}
+
+function sendContextLine(to: string, locale?: string): string {
+  const lang = (locale || 'en').slice(0, 2).toLowerCase()
+  const label = SENT_TO_LABEL[lang] ?? SENT_TO_LABEL.en
+  return `${label} ${to}`
+}
+
 // ─── Resolved channel config shape ──────────────────────────────────────────
 // Stored in `channels.platformConfig` as JSON. The Auth Token is a password
 // field so KinBot replaces it with `authTokenVaultKey` on persistence; the
@@ -208,6 +224,7 @@ export default function twilioSmsPlugin(ctx: PluginContext): {
       )
       return {
         platformMessageId: result.sid,
+        contextLine: sendContextLine(to, params.locale),
         deliveryMeta: {
           twilio: { status: result.status, to, from },
         },

@@ -205,3 +205,43 @@ describe('twilio-sms handleInboundWebhook', () => {
     expect(result.response.status).toBe(403)
   })
 })
+
+describe('twilio-sms sendMessage', () => {
+  // Stub the Twilio Messages API so we exercise the adapter without a network
+  // call. Restore the real fetch after each case.
+  function withStubbedTwilio(run: () => Promise<void>): Promise<void> {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ sid: 'SMsent1234567890abcdef', status: 'queued' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })) as typeof fetch
+    return run().finally(() => {
+      globalThis.fetch = originalFetch
+    })
+  }
+
+  it('returns a localized "Sent to <number>" context line under the bubble', async () => {
+    await withStubbedTwilio(async () => {
+      const adapter = buildAdapter()
+      const result = await adapter.sendMessage(CHANNEL_ID, channelConfig(), {
+        chatId: '+33612345678',
+        content: 'hello',
+        locale: 'fr',
+      })
+      expect(result.platformMessageId).toBe('SMsent1234567890abcdef')
+      expect(result.contextLine).toBe('Envoyé au +33612345678')
+    })
+  })
+
+  it('falls back to English for an unknown locale', async () => {
+    await withStubbedTwilio(async () => {
+      const adapter = buildAdapter()
+      const result = await adapter.sendMessage(CHANNEL_ID, channelConfig(), {
+        chatId: '+15551234567',
+        content: 'hi',
+      })
+      expect(result.contextLine).toBe('Sent to +15551234567')
+    })
+  })
+})
