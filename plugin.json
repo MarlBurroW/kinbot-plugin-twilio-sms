@@ -1,6 +1,6 @@
 {
-  "$schema": "https://unpkg.com/@kinbot-developer/sdk/schemas/plugin-manifest.schema.json",
-  "name": "kinbot-plugin-twilio-sms",
+  "$schema": "https://unpkg.com/@hivekeep/sdk/schemas/plugin-manifest.schema.json",
+  "name": "hivekeep-plugin-twilio-sms",
   "displayName": "Twilio SMS",
   "version": "0.4.0",
   "description": "Send and receive SMS via the Twilio REST API and webhooks. Adds a 'twilio-sms' channel adapter (outbound via Twilio Messages API, inbound via signed Twilio webhooks).",
@@ -9,7 +9,7 @@
   "main": "index.ts",
   "icon": "✉️",
   "iconUrl": "logo.svg",
-  "kinbot": ">=0.41.0",
+  "hivekeep": ">=0.41.0",
   "tags": [
     "twilio",
     "sms",

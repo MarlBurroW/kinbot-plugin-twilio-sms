@@ -2,7 +2,7 @@
 
 Send and receive SMS via Twilio. Adds a `twilio-sms` channel adapter that
 posts outbound messages through the Twilio Messages REST API and ingests
-inbound SMS through a signed Twilio webhook routed by KinBot's built-in
+inbound SMS through a signed Twilio webhook routed by Hivekeep's built-in
 plugin webhook dispatcher.
 
 ## Scope (v0.1)
@@ -13,7 +13,7 @@ In scope:
 - Delivery status callbacks (`MessageStatus`: sent, delivered,
   undelivered, failed). On send, the plugin registers a `StatusCallback`
   pointing at the same signed webhook endpoint; Twilio's async updates are
-  correlated back to the originating Kin message and the delivery hint under
+  correlated back to the originating Agent message and the delivery hint under
   the bubble refreshes live (`✓ Delivered` / `✗ Delivery failed (30007)`).
   Requires `PUBLIC_URL` to be set (otherwise the SMS is still sent, just
   without live status).
@@ -27,7 +27,7 @@ Out of scope (V2 candidates):
   `fromNumber`)
 - Opt-out keyword handling (`STOP`, `UNSUBSCRIBE`, `HELP`). Twilio
   Advanced Opt-Out covers the carrier-mandated behavior server side; if
-  you want the Kin to react to those keywords, do it at the prompt level
+  you want the Agent to react to those keywords, do it at the prompt level
   for now.
 - Voice (calls, recording, transcription). The plugin is SMS only.
 
@@ -35,23 +35,23 @@ Out of scope (V2 candidates):
 
 1. A Twilio account (https://www.twilio.com/console)
 2. A Twilio phone number with SMS capability enabled
-3. A publicly reachable KinBot URL (e.g. `https://kinbot.example.com`).
+3. A publicly reachable Hivekeep URL (e.g. `https://hivekeep.example.com`).
    Twilio webhooks must hit a HTTPS endpoint that resolves to your
-   KinBot host. ngrok or a Cloudflare Tunnel works for development.
-4. The `PUBLIC_URL` env var set on the KinBot server, matching the URL
+   Hivekeep host. ngrok or a Cloudflare Tunnel works for development.
+4. The `PUBLIC_URL` env var set on the Hivekeep server, matching the URL
    Twilio is configured to call. The plugin uses this when reconstructing
    the canonical URL for signature validation.
 
 ## Setup
 
-1. **Install the plugin.** From the KinBot Plugins UI, install
+1. **Install the plugin.** From the Hivekeep Plugins UI, install
    `twilio-sms`. Activate it. The channel platform `twilio-sms` becomes
    available in the channel creation form.
 
-2. **Create a channel.** In the Kin's Channels tab, "New channel",
+2. **Create a channel.** In the Agent's Channels tab, "New channel",
    select Twilio SMS, and fill:
    - Account SID: your Twilio Account SID (starts with `AC...`).
-   - Auth Token: your Twilio Auth Token. Stored in the KinBot vault
+   - Auth Token: your Twilio Auth Token. Stored in the Hivekeep vault
      (encrypted at rest), never logged.
    - From Number: the E.164 number that sends SMS (e.g. `+15551234567`).
      Must be a number you own on Twilio with SMS enabled.
@@ -65,11 +65,11 @@ Out of scope (V2 candidates):
    - Messaging Configuration > "A message comes in".
    - Method: `HTTP POST`.
    - URL: `https://your-public-url/api/channels/plugin/twilio-sms/webhook/{channelId}`,
-     substituting your KinBot public URL and the channel ID from step 3.
+     substituting your Hivekeep public URL and the channel ID from step 3.
    - Save.
 
 5. **Activate the channel.** Send "test" from your phone to the Twilio
-   number. The message arrives in the Kin's chat with metadata
+   number. The message arrives in the Agent's chat with metadata
    describing the Twilio account, target number, and media count.
 
 ## Testing the webhook locally
@@ -104,13 +104,13 @@ the wrong Auth Token, you get `HTTP/1.1 403 Forbidden`.
 
 | Symptom | Likely cause |
 |---|---|
-| `403 Forbidden: invalid Twilio signature` on Twilio retries | `PUBLIC_URL` env var on KinBot does not match the URL configured in Twilio Console, or the Auth Token in the channel config is stale. |
+| `403 Forbidden: invalid Twilio signature` on Twilio retries | `PUBLIC_URL` env var on Hivekeep does not match the URL configured in Twilio Console, or the Auth Token in the channel config is stale. |
 | `Twilio API error (HTTP 401)` from validateConfig | Wrong AccountSid or AuthToken. |
 | Twilio error code 21211 on send | Invalid `To` number (not E.164, or not a real number). |
 | Twilio error code 21610 on send | Recipient has unsubscribed (STOP). Resolve in Twilio Console. |
 | Twilio error code 21408 on send | Country / region is blocked on your account. Enable Geo Permissions. |
 | Twilio error code 11200 in Twilio Console logs | Twilio could not retrieve the webhook URL (timeout, 5xx, DNS). Check that `https://your-public-url/...` is reachable from the public internet and returns 2xx within a few seconds. |
-| Inbound message arrives but the Kin sees no body | Twilio sent `NumMedia > 0` and the body is empty. MMS is out of scope; the metadata field `twilio.numMedia` records the count for the Kin to react to. |
+| Inbound message arrives but the Agent sees no body | Twilio sent `NumMedia > 0` and the body is empty. MMS is out of scope; the metadata field `twilio.numMedia` records the count for the Agent to react to. |
 
 ## Security notes
 
@@ -120,7 +120,7 @@ the wrong Auth Token, you get `HTTP/1.1 403 Forbidden`.
   real attack vector when the validation is loose; we will not soften
   this.
 - **Auth Token storage.** The `authToken` field is declared
-  `type:'password'` in the channel config schema, so KinBot replaces
+  `type:'password'` in the channel config schema, so Hivekeep replaces
   the plain value with `authTokenVaultKey` on persistence. The plugin
   resolves the vault key at use time via `getSecretValue`. The plain
   token never lands in the channels table or in plugin logs.

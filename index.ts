@@ -1,5 +1,5 @@
 /**
- * KinBot plugin: twilio-sms
+ * Hivekeep plugin: twilio-sms
  *
  * Channel adapter that sends and receives SMS via Twilio:
  *   - outbound: POST to https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json
@@ -18,7 +18,7 @@ import type {
   OutboundMessageParams,
   OutboundMessageResult,
   PluginContext,
-} from '@kinbot-developer/sdk'
+} from '@hivekeep/sdk'
 import { getAccount, sendSms, TwilioApiException, type TwilioAuth } from './twilioApi'
 import { validateTwilioSignature } from './webhookSecurity'
 
@@ -79,7 +79,7 @@ function sendContextLine(to: string, locale?: string): string {
 
 // ─── Resolved channel config shape ──────────────────────────────────────────
 // Stored in `channels.platformConfig` as JSON. The Auth Token is a password
-// field so KinBot replaces it with `authTokenVaultKey` on persistence; the
+// field so Hivekeep replaces it with `authTokenVaultKey` on persistence; the
 // real value is fetched via `ctx.vault.getSecret()` at use time. Plain-text
 // fallback is supported for tests and dev-time fixtures.
 
@@ -122,7 +122,7 @@ function requireFromNumber(config: Record<string, unknown>): string {
 
 const E164_RE = /^\+[1-9]\d{1,14}$/
 
-// Empty TwiML response: tells Twilio "received, no auto-reply". The Kin
+// Empty TwiML response: tells Twilio "received, no auto-reply". The Agent
 // owns the reply path via sendMessage; we never let Twilio auto-respond.
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
 
@@ -140,8 +140,8 @@ export default function twilioSmsPlugin(ctx: PluginContext): {
       brandColor: '#F22F46',
     },
     // SMS has no concept of a bot display name on the recipient's side: the
-    // From is just a phone number. Fall back to the core's "[Kin Name] "
-    // prefix on outbound texts so the recipient knows which Kin is replying.
+    // From is just a phone number. Fall back to the core's "[Agent Name] "
+    // prefix on outbound texts so the recipient knows which Agent is replying.
     identitySwitchMode: 'prefix',
 
     async start(
@@ -241,7 +241,7 @@ export default function twilioSmsPlugin(ctx: PluginContext): {
       // Reconstruct the canonical URL Twilio used to sign. Twilio always
       // signs the public URL configured in the console, so we prefer
       // PUBLIC_URL (joined to the request path) over req.url, which inside
-      // KinBot would resolve to a localhost host behind a reverse proxy.
+      // Hivekeep would resolve to a localhost host behind a reverse proxy.
       const reqUrl = new URL(req.url)
       const publicBase = (process.env.PUBLIC_URL ?? reqUrl.origin).replace(/\/$/, '')
       const fullUrl = `${publicBase}${reqUrl.pathname}${reqUrl.search}`

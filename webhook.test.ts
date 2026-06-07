@@ -8,7 +8,7 @@ const ACCOUNT_SID = 'ACtest1234567890abcdef'
 const AUTH_TOKEN = 'test_token_super_secret'
 const FROM_NUMBER = '+15550001111'
 const CHANNEL_ID = '11111111-1111-4111-8111-111111111111'
-const PUBLIC_URL = 'https://kinbot.test'
+const PUBLIC_URL = 'https://hivekeep.test'
 const WEBHOOK_PATH = `/api/channels/plugin/twilio-sms/webhook/${CHANNEL_ID}`
 const FULL_URL = `${PUBLIC_URL}${WEBHOOK_PATH}`
 
